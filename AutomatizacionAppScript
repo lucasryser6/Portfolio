@@ -6,3 +6,78 @@ Este proyecto permite registrar horas trabajadas por colaboradores y generar aut
 
 📬 (Opcional) Envío por email automático de los recibos.
 
+Codigo appscript:
+const PLANTILLA_ID = "1Ev-kzxrDF-x70bjjhzIxOSkLH2P4884tGvy0nw5613c"; // 
+const CARPETA_ID = "1cIwTqiBWd4_8flYmRSeuySt_zKtKxvI3";     // 
+
+function calcularHoras() {
+  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Horas");
+  const datos = hoja.getDataRange().getValues();
+
+  for (let i = 1; i < datos.length; i++) {
+    const fila = datos[i];
+    const horaIngreso = fila[1];
+    const horaSalida = fila[2];
+    const valorHora = parseFloat(fila[3]);
+    const bono = fila[4];
+
+    if (!horaIngreso || !horaSalida || isNaN(valorHora)) continue;
+
+    const horas = calcularDiferenciaHoras(horaIngreso, horaSalida);
+    const sueldoBase = horas * valorHora;
+    const bonoExtra = (bono.toString().toLowerCase() === "sí" || bono.toString().toLowerCase() === "si") ? sueldoBase * 0.1 : 0;
+    const sueldoTotal = sueldoBase + bonoExtra;
+
+    hoja.getRange(i+1, 8).setValue(horas);              // Columna H
+    hoja.getRange(i+1, 9).setValue(sueldoBase);         // Columna I
+    hoja.getRange(i+1,10).setValue(bonoExtra);          // Columna J
+    hoja.getRange(i+1,11).setValue(sueldoTotal);        // Columna K
+  }
+}
+
+function calcularDiferenciaHoras(ingreso, salida) {
+  const horaStr = Utilities.formatDate(new Date(ingreso), Session.getScriptTimeZone(), "HH:mm");
+  const salidaStr = Utilities.formatDate(new Date(salida), Session.getScriptTimeZone(), "HH:mm");
+
+  const [h1, m1] = horaStr.split(":").map(Number);
+  const [h2, m2] = salidaStr.split(":").map(Number);
+
+  let diferencia = ((h2 * 60 + m2) - (h1 * 60 + m1)) / 60;
+  return diferencia > 0 ? diferencia : 0;
+}
+
+function hacerRecibos() {
+  const hoja = SpreadsheetApp.getActiveSpreadsheet().getSheetByName("Horas");
+  const datos = hoja.getDataRange().getValues();
+
+  for (let i = 1; i < datos.length; i++) {
+    const [empleado,, , valorHora, bono, mes, anio, horas, sueldoBase, bonoExtra, sueldoTotal] = datos[i];
+
+    if (!empleado || !horas || !sueldoTotal) continue;
+
+    const bonoTexto = bonoExtra > 0 ? `$${bonoExtra.toFixed(2)}` : "Sin bono";
+
+    const plantilla = DriveApp.getFileById(PLANTILLA_ID);
+    const copia = plantilla.makeCopy(`Recibo - ${empleado} - ${mes} ${anio}`, DriveApp.getFolderById(CARPETA_ID));
+    const doc = DocumentApp.openById(copia.getId());
+    const cuerpo = doc.getBody();
+
+    cuerpo.replaceText('{{empleado}}', empleado);
+    cuerpo.replaceText('{{mes}}', mes);
+    cuerpo.replaceText('{{anio}}', anio.toString());
+    cuerpo.replaceText('{{horas}}', horas.toString());
+    cuerpo.replaceText('{{valorHora}}', valorHora.toString());
+    cuerpo.replaceText('{{sueldoBase}}', sueldoBase.toFixed(2));
+    cuerpo.replaceText('{{bonoTexto}}', bonoTexto);
+    cuerpo.replaceText('{{sueldoTotal}}', sueldoTotal.toFixed(2));
+
+    doc.saveAndClose();
+
+    const archivoPDF = DriveApp.getFileById(copia.getId()).getAs("application/pdf");
+    DriveApp.getFolderById(CARPETA_ID).createFile(archivoPDF).setName(`Recibo_${empleado}_${mes}_${anio}.pdf`);
+    DriveApp.getFileById(copia.getId()).setTrashed(true);
+  }
+
+  SpreadsheetApp.getUi().alert("Recibos generados correctamente.");
+}
+
