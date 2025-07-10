@@ -1,0 +1,8 @@
+Este proyecto permite registrar horas trabajadas por colaboradores y generar automáticamente recibos en PDF personalizados, listos para enviar o imprimir.
+🛠 Herramientas utilizadas
+📄 Google Sheets: interfaz para carga de datos (horas, nombre, tareas, etc.).
+
+⚙️ Apps Script: lógica automatizada para procesar los datos y generar PDFs.
+
+📬 (Opcional) Envío por email automático de los recibos.
+
